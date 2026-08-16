@@ -1,0 +1,137 @@
+// schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  INSTRUCTOR
+  STUDENT
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  WAITLIST
+  ATTENDED
+  NO_SHOW
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  fullName      String
+  role          Role      @default(STUDENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relación si el usuario es instructor
+  instructorProfile Instructor?
+
+  bookings      Booking[]
+  routines      Routine[]
+
+  @@map("users")
+}
+
+model Instructor {
+  id          String     @id @default(uuid())
+  bio         String?
+  specialty   String?
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String     @unique
+
+  schedules   Schedule[]
+
+  @@map("instructors")
+}
+
+model ClassType {
+  id            String     @id @default(uuid())
+  name          String     // ej. "Funcional", "Yoga"
+  description   String?
+  durationMin   Int        @default(60)
+
+  schedules     Schedule[]
+
+  @@map("class_types")
+}
+
+model Schedule {
+  id            String     @id @default(uuid())
+  startTime     DateTime
+  endTime       DateTime
+  capacity      Int        @default(5)
+  status        String     @default("SCHEDULED") // SCHEDULED | CANCELLED | COMPLETED
+
+  classType     ClassType  @relation(fields: [classTypeId], references: [id])
+  classTypeId   String
+
+  instructor    Instructor @relation(fields: [instructorId], references: [id])
+  instructorId  String
+
+  bookings      Booking[]
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([startTime])
+  @@map("schedules")
+}
+
+model Booking {
+  id            String        @id @default(uuid())
+  status        BookingStatus @default(CONFIRMED)
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+
+  schedule      Schedule      @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  scheduleId    String
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Evita que un mismo alumno reserve dos veces el mismo turno
+  @@unique([userId, scheduleId])
+  @@index([scheduleId, status])
+  @@map("bookings")
+}
+
+model Routine {
+  id            String            @id @default(uuid())
+  title         String
+  notes         String?
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+
+  exercises     RoutineExercise[]
+
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@map("routines")
+}
+
+model RoutineExercise {
+  id          String   @id @default(uuid())
+  name        String
+  sets        Int
+  reps        Int
+  weightKg    Float?
+  orderIndex  Int      @default(0)
+
+  routine     Routine  @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  routineId   String
+
+  @@map("routine_exercises")
+}
