@@ -1,6 +1,6 @@
 # 🏋️‍♂️ MaletFit — API Backend
 
-Backend para la plataforma de gestión de turnos, clases y reservas en gimnasio y centros deportivos. Construido con arquitectura modular en NestJS, TypeScript y Prisma ORM.
+Backend para la plataforma de gestión de turnos, clases y reservas en gimnasios y centros deportivos. Construido con arquitectura modular en NestJS, TypeScript y Prisma ORM.
 
 ---
 
@@ -10,15 +10,28 @@ Backend para la plataforma de gestión de turnos, clases y reservas en gimnasio 
 * **Lenguaje:** TypeScript
 * **Base de Datos:** PostgreSQL (vía Supabase)
 * **ORM:** Prisma ORM
-* **Autenticación:** Passport JWT + Bcrypt
+* **Autenticación:** JWT almacenado en Cookies httpOnly + Bcrypt (`cookie-parser`)
 * **Documentación:** Swagger / OpenAPI
 * **Pruebas de API:** Thunder Client
 
 ---
 
+## 🔐 Seguridad y Autenticación
+
+El sistema implementa una arquitectura de autenticación mediante cookies **httpOnly**:
+
+* **Protección XSS:** El token JWT se transporta en la cookie `jwt` inaccesible desde JavaScript en el navegador.
+* **Manejo de Sesión:**
+  * `POST /auth/register` — Registro y asignación automática de cookie.
+  * `POST /auth/login` — Autenticación y asignación de cookie `jwt`.
+  * `POST /auth/logout` — Destrucción limpia de la cookie de sesión.
+* **Control de Acceso:** `JwtGuard` valida la cookie en peticiones protegidas y `RolesGuard` restringe endpoints según el rol asignado (`ADMIN`, `CLIENT`).
+
+---
+
 ## 📋 Módulos Principales
 
-* **Auth:** Registro, Login e integración con tokens JWT.
+* **Auth:** Registro, Login, Logout e integración segura de tokens JWT por cookies.
 * **Users:** Perfil de usuario (`/users/me`) y gestión con control de acceso por roles (`RolesGuard`).
 * **Schedules:** Creación y consulta de turnos de clases con capacidad delimitada y verificación de disponibilidad.
 * **Bookings:** Lógica de reservas atómicas (`$transaction`) con control estricto de cupo, prevención de duplicados y cancelación (*soft delete*).
