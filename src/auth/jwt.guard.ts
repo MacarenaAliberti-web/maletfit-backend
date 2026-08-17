@@ -13,7 +13,7 @@ export class JwtGuard implements CanActivate {
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest<Request>();
-        const token = this.extractTokenFromHeader(request);
+        const token = this.extractTokenFromCookie(request);
 
         if (!token) {
             throw new UnauthorizedException('Token no proporcionado');
@@ -21,7 +21,7 @@ export class JwtGuard implements CanActivate {
 
         try {
             const payload = await this.jwtService.verifyAsync(token, {
-                secret: process.env.JWT_SECRET || 'supersecretkey',
+                secret: process.env.JWT_SECRET,
             });
             request['user'] = payload;
         } catch {
@@ -31,8 +31,7 @@ export class JwtGuard implements CanActivate {
         return true;
     }
 
-    private extractTokenFromHeader(request: Request): string | undefined {
-        const [type, token] = request.headers.authorization?.split(' ') ?? [];
-        return type === 'Bearer' ? token : undefined;
+    private extractTokenFromCookie(request: Request): string | undefined {
+        return request.cookies?.['jwt'];
     }
 }

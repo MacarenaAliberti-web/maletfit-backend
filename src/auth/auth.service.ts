@@ -35,7 +35,7 @@ export class AuthService {
             },
         });
 
-        const token = this.generateToken(user.id, user.role);
+        const token = this.generateToken(user.id, user.email, user.role);
 
         return {
             user: {
@@ -63,7 +63,7 @@ export class AuthService {
             throw new UnauthorizedException('Credenciales inválidas');
         }
 
-        const token = this.generateToken(user.id, user.role);
+        const token = this.generateToken(user.id, user.email, user.role);
 
         return {
             user: {
@@ -76,7 +76,7 @@ export class AuthService {
         };
     }
 
-    private generateToken(userId: string, role: string) {
-        return this.jwtService.sign({ sub: userId, role });
+    private generateToken(userId: string, email: string, role: string) {
+        return this.jwtService.sign({ sub: userId, email, role });
     }
 }
