@@ -6,14 +6,41 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class BookingsService {
     constructor(private readonly prisma: PrismaService) { }
 
+    private async runSerializableTransaction<T>(
+        fn: (tx: Prisma.TransactionClient) => Promise<T>,
+    ): Promise<T> {
+        const MAX_RETRIES = 2;
+
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                return await this.prisma.$transaction(fn, {
+                    isolationLevel: 'Serializable',
+                });
+            } catch (error) {
+                const isSerializationError =
+                    error instanceof Prisma.PrismaClientKnownRequestError &&
+                    error.code === 'P2034';
+
+                if (isSerializationError && attempt < MAX_RETRIES) {
+                    continue;
+                }
+                throw error;
+            }
+        }
+
+        // Inalcanzable en la práctica (el loop siempre retorna o lanza),
+        // pero TypeScript necesita un retorno explícito en todos los caminos.
+        throw new Error('No se pudo completar la operación tras reintentos');
+    }
+
     async create(userId: string, dto: CreateBookingDto) {
-        return this.prisma.$transaction(async (tx) => {
-            // 1. Obtener el turno
+        return this.runSerializableTransaction(async (tx) => {
             const schedule = await tx.schedule.findUnique({
                 where: { id: dto.scheduleId },
             });
@@ -26,19 +53,6 @@ export class BookingsService {
                 throw new BadRequestException('No se puede reservar un turno cancelado');
             }
 
-            // 2. Verificar reservas activas en el turno
-            const activeBookingsCount = await tx.booking.count({
-                where: {
-                    scheduleId: dto.scheduleId,
-                    status: 'CONFIRMED',
-                },
-            });
-
-            if (activeBookingsCount >= schedule.capacity) {
-                throw new BadRequestException('El turno ya no tiene cupos disponibles (máximo 5)');
-            }
-
-            // 3. Verificar si el alumno ya tiene una reserva activa en este turno
             const existingBooking = await tx.booking.findUnique({
                 where: {
                     userId_scheduleId: {
@@ -48,15 +62,28 @@ export class BookingsService {
                 },
             });
 
-            if (existingBooking && existingBooking.status === 'CONFIRMED') {
-                throw new ConflictException('Ya tienes una reserva activa para este turno');
+            if (
+                existingBooking &&
+                (existingBooking.status === 'CONFIRMED' || existingBooking.status === 'WAITLIST')
+            ) {
+                throw new ConflictException(
+                    'Ya tienes una reserva activa o estás en lista de espera para este turno',
+                );
             }
 
-            // 4. Crear o reactivar la reserva
+            const activeBookingsCount = await tx.booking.count({
+                where: {
+                    scheduleId: dto.scheduleId,
+                    status: 'CONFIRMED',
+                },
+            });
+
+            const newStatus = activeBookingsCount >= schedule.capacity ? 'WAITLIST' : 'CONFIRMED';
+
             if (existingBooking) {
                 return tx.booking.update({
                     where: { id: existingBooking.id },
-                    data: { status: 'CONFIRMED' },
+                    data: { status: newStatus },
                 });
             }
 
@@ -64,7 +91,7 @@ export class BookingsService {
                 data: {
                     userId,
                     scheduleId: dto.scheduleId,
-                    status: 'CONFIRMED',
+                    status: newStatus,
                 },
             });
         });
@@ -89,6 +116,58 @@ export class BookingsService {
     }
 
     async cancel(userId: string, bookingId: string) {
+        return this.runSerializableTransaction(async (tx) => {
+            const booking = await tx.booking.findUnique({
+                where: { id: bookingId },
+            });
+
+            if (!booking) {
+                throw new NotFoundException('Reserva no encontrada');
+            }
+
+            if (booking.userId !== userId) {
+                throw new BadRequestException('No tienes permiso para cancelar esta reserva');
+            }
+
+            if (booking.status === 'CANCELLED') {
+                return booking;
+            }
+
+            const wasConfirmed = booking.status === 'CONFIRMED';
+
+            const updatedBooking = await tx.booking.update({
+                where: { id: bookingId },
+                data: { status: 'CANCELLED' },
+            });
+
+            if (wasConfirmed) {
+                const nextInWaitlist = await tx.booking.findFirst({
+                    where: {
+                        scheduleId: booking.scheduleId,
+                        status: 'WAITLIST',
+                    },
+                    orderBy: {
+                        createdAt: 'asc',
+                    },
+                });
+
+                if (nextInWaitlist) {
+                    await tx.booking.update({
+                        where: { id: nextInWaitlist.id },
+                        data: { status: 'CONFIRMED' },
+                    });
+                }
+            }
+
+            return updatedBooking;
+        });
+    }
+
+    async updateAttendance(
+        instructorId: string,
+        bookingId: string,
+        status: 'ATTENDED' | 'NO_SHOW',
+    ) {
         const booking = await this.prisma.booking.findUnique({
             where: { id: bookingId },
         });
@@ -97,13 +176,9 @@ export class BookingsService {
             throw new NotFoundException('Reserva no encontrada');
         }
 
-        if (booking.userId !== userId) {
-            throw new BadRequestException('No tienes permiso para cancelar esta reserva');
-        }
-
         return this.prisma.booking.update({
             where: { id: bookingId },
-            data: { status: 'CANCELLED' },
+            data: { status },
         });
     }
 }

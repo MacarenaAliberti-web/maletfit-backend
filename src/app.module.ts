@@ -6,10 +6,11 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { RoutinesModule } from './routines/routines.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, UsersModule, SchedulesModule, BookingsModule],
+  imports: [PrismaModule, AuthModule, UsersModule, SchedulesModule, BookingsModule, RoutinesModule],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
