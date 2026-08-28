@@ -36,6 +36,29 @@ export class SchedulesService {
         });
     }
 
+    async findMySchedules(instructorUserId: string) {
+        // El modelo Instructor tiene su propio id, distinto del userId del User.
+        // Primero resolvemos el Instructor a partir del userId que viene del JWT.
+        const instructor = await this.prisma.instructor.findUnique({
+            where: { userId: instructorUserId },
+        });
+
+        if (!instructor) {
+            throw new NotFoundException('No se encontró un perfil de instructor para este usuario');
+        }
+
+        return this.prisma.schedule.findMany({
+            where: { instructorId: instructor.id },
+            include: {
+                classType: true,
+                _count: {
+                    select: { bookings: { where: { status: 'CONFIRMED' } } },
+                },
+            },
+            orderBy: { startTime: 'asc' },
+        });
+    }
+
     async getAvailability(id: string) {
         const schedule = await this.prisma.schedule.findUnique({
             where: { id },
@@ -59,6 +82,37 @@ export class SchedulesService {
             occupiedSeats: occupied,
             availableSeats: available,
             isFull: available === 0,
+        };
+    }
+
+    async getRoster(scheduleId: string) {
+        const schedule = await this.prisma.schedule.findUnique({
+            where: { id: scheduleId },
+        });
+
+        if (!schedule) {
+            throw new NotFoundException('Turno no encontrado');
+        }
+
+        const bookings = await this.prisma.booking.findMany({
+            where: {
+                scheduleId,
+                status: { in: ['CONFIRMED', 'WAITLIST', 'ATTENDED', 'NO_SHOW'] },
+            },
+            include: {
+                user: {
+                    select: { id: true, fullName: true, email: true },
+                },
+            },
+            orderBy: { createdAt: 'asc' },
+        });
+
+        return {
+            scheduleId,
+            confirmed: bookings.filter((b) =>
+                ['CONFIRMED', 'ATTENDED', 'NO_SHOW'].includes(b.status),
+            ),
+            waitlist: bookings.filter((b) => b.status === 'WAITLIST'),
         };
     }
 }

@@ -8,9 +8,10 @@ import { SchedulesModule } from './schedules/schedules.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { RoutinesModule } from './routines/routines.module';
 import { ClassTypesModule } from './class-types/class-types.module';
+import { InstructorsModule } from './instructors/instructors.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, UsersModule, SchedulesModule, BookingsModule, RoutinesModule, ClassTypesModule],
+  imports: [PrismaModule, AuthModule, UsersModule, SchedulesModule, BookingsModule, RoutinesModule, ClassTypesModule, InstructorsModule],
   controllers: [AppController],
   providers: [AppService],
 })
