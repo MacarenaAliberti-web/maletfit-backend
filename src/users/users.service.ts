@@ -24,6 +24,13 @@ export class UsersService {
         return user;
     }
 
+    async findAllStudents() {
+        return this.prisma.user.findMany({
+            where: { role: 'STUDENT' },
+            select: { id: true, fullName: true, email: true },
+        });
+    }
+
     async findAll() {
         return this.prisma.user.findMany({
             select: {

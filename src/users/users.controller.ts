@@ -16,6 +16,12 @@ export class UsersController {
     return this.usersService.findById(userId);
   }
 
+  @Get('students')
+  @Roles(Role.ADMIN, Role.INSTRUCTOR)
+  getAllStudents() {
+    return this.usersService.findAllStudents();
+  }
+
   @Get()
   @Roles(Role.ADMIN)
   getAllUsers() {

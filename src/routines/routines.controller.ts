@@ -34,6 +34,13 @@ export class RoutinesController {
         return this.routinesService.findMyRoutines(userId);
     }
 
+    @Get()
+    @UseGuards(RolesGuard)
+    @Roles(Role.ADMIN, Role.INSTRUCTOR)
+    findAll() {
+        return this.routinesService.findAll();
+    }
+
     @Get(':id')
     findOne(
         @Param('id') id: string,

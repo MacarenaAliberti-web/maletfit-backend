@@ -61,6 +61,20 @@ export class RoutinesService {
         return routine;
     }
 
+    async findAll() {
+        return this.prisma.routine.findMany({
+            include: {
+                user: {
+                    select: { id: true, fullName: true, email: true },
+                },
+                exercises: {
+                    orderBy: { orderIndex: 'asc' },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
     async update(routineId: string, dto: UpdateRoutineDto) {
         const routine = await this.prisma.routine.findUnique({ where: { id: routineId } });
 
