@@ -5,6 +5,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { Role } from '@prisma/client';
+import { Patch, Param, Body } from '@nestjs/common';
+import { UpdateRoleDto } from './dto/update-role.dto';
 
 @Controller('users')
 @UseGuards(JwtGuard, RolesGuard)
@@ -27,4 +29,15 @@ export class UsersController {
   getAllUsers() {
     return this.usersService.findAll();
   }
+  @Patch(':id/role')
+  @Roles(Role.ADMIN)
+  updateRole(
+    @GetUser('sub') requesterId: string,
+    @Param('id') userId: string,
+    @Body() dto: UpdateRoleDto,
+  ) {
+    return this.usersService.updateRole(requesterId, userId, dto.role);
+  }
+
+
 }
