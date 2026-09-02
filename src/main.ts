@@ -32,27 +32,14 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('MaletFit API')
-    .setDescription('API Backend para la gestión de turnos y reservas en gimnasio')
-    .setVersion('1.0')
-
-    //Esto describe el flujo de Bearer token en header — pero migraste hace varias conversaciones a cookies httpOnly. Tu /auth/login ya no devuelve el token en el body para que alguien lo "ingrese" en Swagger; la cookie se setea automáticamente. Este addBearerAuth está describiendo un mecanismo de auth que tu API real ya no usa — cualquiera que pruebe tu API por primera vez desde /api/docs y siga esta instrucción se va a confundir, porque no hay ningún token que copiar del body de la respuesta.
-
-    //No lo cambio ahora para no mezclar dos refactors en la misma pasada — pero anotalo como pendiente: cuando llegues a la tarea de "pulir Swagger" en tu roadmap, esa sección de DocumentBuilder necesita actualizarse para reflejar que la auth es vía cookie, no vía header (Swagger UI tiene soporte para documentar cookies también, aunque probar cookies httpOnly desde la interfaz de Swagger tiene sus propias limitaciones que vale la pena investigar en su momento).
-
-
-
-
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        name: 'JWT',
-        description: 'Ingresa el token JWT obtenido en /auth/login',
-        in: 'header',
-      },
-      'JWT-auth',
+    .setDescription(
+      'API Backend para la gestión de turnos y reservas en gimnasio.\n\n' +
+      'Autenticación: esta API usa cookies httpOnly (no Bearer token). ' +
+      'Para probar endpoints protegidos desde esta interfaz, primero iniciá sesión ' +
+      'en /auth/login desde el mismo navegador — la cookie viaja automáticamente ' +
+      'en las siguientes requests que hagas desde acá.',
     )
+    .setVersion('1.0')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

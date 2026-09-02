@@ -10,6 +10,7 @@ import { JwtGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { CreateClassTypeDto } from './dto/create-class-type.dto';
 
 @Controller('class-types')
 @UseGuards(JwtGuard)
@@ -24,7 +25,7 @@ export class ClassTypesController {
     @Post()
     @UseGuards(RolesGuard)
     @Roles(Role.ADMIN)
-    create(@Body() body: { name: string; description?: string; durationMin?: number }) {
-        return this.classTypesService.create(body);
+    create(@Body() dto: CreateClassTypeDto) {
+        return this.classTypesService.create(dto);
     }
 }
