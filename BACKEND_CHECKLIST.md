@@ -1,117 +1,99 @@
 # Checklist de Revisión Integral — Backend MaletFit
 
-Checklist previo a la integración con el frontend. Organizado por área, con el "por qué" de cada punto para que sirva también como referencia de buenas prácticas en tu portfolio.
+Actualizado con todos los módulos: `auth`, `users`, `instructors`, `class-types`, `schedules`, `bookings`, `routines`. Organizado por área, con el "por qué" de cada punto para que sirva también como referencia de buenas prácticas.
 
 ---
 
 ## 1. Variables de entorno y configuración
 
-- [ ] `.env` **no** está commiteado (verificar `.gitignore`)
-- [ ] Existe un `.env.example` con todas las claves necesarias (sin valores reales) para que cualquiera pueda clonar el repo y saber qué configurar
-- [ ] `DATABASE_URL` (pooled, puerto 6543) y `DIRECT_URL` (directa, puerto 5432) están ambas configuradas para Supabase
-- [ ] `JWT_SECRET` es un valor largo y aleatorio (no un string simple tipo `"secret123"`) — generalo con `openssl rand -base64 32`
-- [ ] `JWT_EXPIRES_IN` está definido explícitamente (ej. `"1d"`), no dejado en default
-- [ ] Puerto de la app (`PORT`) parametrizado vía env, no hardcodeado en `main.ts`
-- [ ] Configuración separada (o al menos documentada) para `development` vs `production`
+- [x] `.env` no está commiteado
+- [x] `.env.example` con todas las claves necesarias
+- [x] `DATABASE_URL` (pooled) y `DIRECT_URL` (directa) configuradas para Supabase
+- [x] `JWT_SECRET`: sin fallback inseguro (`|| 'supersecretkey'` eliminado de los 6 módulos que lo usaban), con chequeo **fail-fast** en `main.ts` — la app no arranca si falta la variable
+- [x] `FRONTEND_URL` configurada para CORS
 
 ---
 
 ## 2. CORS
 
-- [ ] CORS habilitado explícitamente en `main.ts` con `app.enableCors()`
-- [ ] En producción, el `origin` está restringido al dominio real del frontend (no `origin: '*'`) — importante mencionarlo en el README como decisión consciente de seguridad
-- [ ] Si vas a usar cookies para auth en el futuro, `credentials: true` está considerado (no aplica si usás Bearer token en headers, que es tu caso actual)
-
-```typescript
-app.enableCors({
-  origin: process.env.FRONTEND_URL, // en dev: http://localhost:3001
-  credentials: true,
-});
-```
+- [x] `app.enableCors({ origin: process.env.FRONTEND_URL, credentials: true })`
+- [x] `credentials: true` habilitado (necesario para que las cookies httpOnly viajen cross-origin)
+- [ ] En producción, restringir `origin` a un dominio fijo (no depender solo de la env var sin fallback seguro)
 
 ---
 
-## 3. Manejo global de excepciones y validación
+## 3. Validación y manejo de excepciones
 
-- [ ] `ValidationPipe` global configurado con `whitelist: true` (descarta propiedades no declaradas en el DTO) y `forbidNonWhitelisted: true` (rechaza el request si vienen propiedades extra, en vez de ignorarlas silenciosamente)
-- [ ] `transform: true` activado para que los DTOs conviertan tipos automáticamente (ej. query params de string a number)
-- [ ] Filtro global de excepciones (`HttpExceptionFilter` o similar) para que **todas** las respuestas de error tengan un formato JSON consistente (mismo shape en un 400, 401, 404, 500)
-- [ ] Los mensajes de error no exponen detalles internos (stack traces, queries SQL) en producción
-
-```typescript
-app.useGlobalPipes(
-  new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }),
-);
-```
+- [x] `ValidationPipe` global con `whitelist: true`, `forbidNonWhitelisted: true`, `transform: true`
+- [x] Todos los módulos usan DTOs con `class-validator` (incluyendo `class-types`, el último en sumarse — antes usaba un tipo inline sin validación real)
+- [x] `CreateRoutineDto` valida arrays anidados con `@ValidateNested({ each: true })` + `@Type(() => CreateExerciseDto)`
+- [x] `UpdateRoleDto` usa `@IsEnum(Role)` para rechazar valores de rol inválidos
+- [ ] Filtro global de excepciones (`HttpExceptionFilter`) para formato de error 100% consistente — pendiente, no bloqueante
 
 ---
 
 ## 4. Swagger / OpenAPI
 
-- [ ] `SwaggerModule` configurado en `main.ts`, accesible en `/api` o `/docs`
-- [ ] Cada controller tiene `@ApiTags(...)` para agrupar endpoints por módulo
-- [ ] Endpoints protegidos tienen `@ApiBearerAuth()` para que Swagger muestre el campo de token
-- [ ] DTOs decorados con `@ApiProperty()` (incluyendo `description` y `example` donde ayude)
-- [ ] Respuestas documentadas con `@ApiResponse({ status, description })` al menos en los casos de éxito y el error más relevante de cada endpoint (ej. 409 en bookings)
-- [ ] Swagger **deshabilitado o protegido** en producción si el backend es público (opcional según tu caso, pero vale la pena decidirlo y documentarlo)
+- [x] Configurado en `/api/docs`
+- [x] Descripción actualizada para reflejar auth por **cookies httpOnly**, no Bearer token (se sacó el `addBearerAuth` desactualizado)
+- [ ] `@ApiTags`, `@ApiProperty` y ejemplos por endpoint — cobertura parcial, mejora futura
 
 ---
 
 ## 5. Autenticación, roles y seguridad
 
-- [ ] `JwtAuthGuard` aplicado a todos los endpoints que lo requieren (revisar que ninguno haya quedado desprotegido por error)
-- [ ] `RolesGuard` + `@Roles(...)` correctamente aplicado en endpoints administrativos (`/users`, creación de `Schedule`, etc.)
-- [ ] Contraseñas hasheadas con `bcrypt` con un `saltRounds` razonable (10-12)
-- [ ] El campo `password` **nunca** se serializa en ninguna respuesta — verificar con un `select` explícito en las queries de Prisma o un interceptor de exclusión global
-- [ ] El JWT payload incluye solo lo necesario (`sub`, `email`, `role`) — nunca datos sensibles
-- [ ] Rate limiting básico considerado para `/auth/login` (con `@nestjs/throttler`, aunque sea como mejora futura documentada) para mitigar fuerza bruta
+- [x] JWT en cookie httpOnly, `secure` en producción, `sameSite: 'lax'`
+- [x] `JwtGuard` manual (no Passport) leyendo `req.cookies['jwt']`
+- [x] `RolesGuard` + `@Roles(...)` aplicado por endpoint, no globalmente — cada módulo define su propio nivel de acceso
+- [x] `password` nunca se serializa (verificado con `select` explícito en todas las queries de `User`)
+- [x] Protección contra **auto-lockout**: un admin no puede cambiar su propio rol vía `PATCH /users/:id/role`
+- [x] Al promover a alguien a `INSTRUCTOR`, se crea automáticamente su perfil en la tabla `Instructor` (dentro de una transacción, junto con el cambio de rol)
+- [ ] Rate limiting en `/auth/login` (mejora futura, con `@nestjs/throttler`)
+- [ ] Protección CSRF explícita (mitigado parcialmente por `sameSite: 'lax'`, pero no resuelto del todo — anotado como tema a investigar)
 
 ---
 
-## 6. Manejo de fechas y zonas horarias (crítico para Schedules/Bookings)
+## 6. Fechas y zonas horarias
 
-- [ ] Todas las fechas se almacenan en **UTC** en la base de datos (comportamiento por defecto de `DateTime` en Postgres/Prisma si no se fuerza timezone)
-- [ ] El backend nunca asume la zona horaria del servidor para interpretar un `startTime` recibido del frontend — el frontend debe enviar el timestamp ya en formato ISO 8601 con offset (`2026-08-20T14:00:00.000Z`)
-- [ ] Definida la estrategia de visualización: el frontend convierte UTC → hora local del usuario (con `Intl.DateTimeFormat` o `date-fns-tz`), el backend no hace esa conversión
-- [ ] Validación de que `endTime` sea posterior a `startTime` en el DTO de `Schedule` (con un validador custom de `class-validator` o chequeo manual en el service)
-- [ ] Si más adelante hay instructores en distintas zonas horarias, documentarlo como limitación conocida o mejora futura — no es necesario resolverlo ahora, pero vale nombrarlo
+- [x] Fechas en UTC en la base de datos (comportamiento default de Prisma/Postgres)
+- [x] El frontend envía `startTime`/`endTime` como ISO 8601 con offset; el backend nunca asume timezone del servidor
+- [ ] Validación de que `endTime > startTime` en `CreateScheduleDto` — pendiente de confirmar si ya está
 
 ---
 
-## 7. Integridad referencial en Prisma
+## 7. Integridad referencial y lógica de negocio
 
-- [ ] Revisar cada relación y decidir conscientemente el `onDelete` (no dejarlo en default sin pensarlo):
-  - `Booking → User`: `onDelete: Cascade` (si se borra el usuario, se borran sus reservas) — revisar si en tu caso preferís `Restrict` para no perder historial
-  - `Booking → Schedule`: `onDelete: Cascade` está bien si un turno se elimina físicamente, pero considerá si en la práctica preferís **soft delete** (`status: CANCELLED`) en vez de `DELETE` real, para conservar histórico de asistencia
-  - `Instructor → User`: `onDelete: Cascade` es razonable
-  - `RoutineExercise → Routine`: `onDelete: Cascade` correcto
-- [ ] Constraint `@@unique([userId, scheduleId])` en `Booking` verificado y probado (evita doble reserva del mismo alumno al mismo turno)
-- [ ] Índices en columnas de búsqueda frecuente: `Schedule.startTime`, `Booking.scheduleId` + `status` — ya los tenés en el schema, verificar que se hayan aplicado en la migración
-- [ ] Si decidís pasar a **soft deletes** en `Schedule`/`Booking` (recomendado por el punto anterior), documentar esa decisión en el README como criterio de diseño
-
----
-
-## 8. Calidad general y buenas prácticas
-
-- [ ] Lint (`npm run lint`) y build (`npm run build`) corren sin errores antes de cada push
-- [ ] Al menos un test unitario del `BookingsService`, incluyendo el caso de concurrencia (2 creates simultáneos sobre el último cupo)
-- [ ] README principal del repo actualizado con: descripción del proyecto, stack, instrucciones de instalación, variables de entorno necesarias, y link a este checklist y a `THUNDER_CLIENT.md`
-- [ ] Logs mínimos en operaciones críticas (creación de reserva, fallos de transacción) para poder debuggear en producción sin exponer datos sensibles
+- [x] `@@unique([userId, scheduleId])` en `Booking` — evita doble reserva del mismo alumno al mismo turno
+- [x] Índices en `Schedule.startTime` y `Booking.scheduleId + status`
+- [x] **Condición de carrera resuelta:** `create()` y `cancel()` de `bookings.service.ts` corren dentro de `runSerializableTransaction()` (helper reusable), con `isolationLevel: 'Serializable'` y reintentos ante el código de error `P2034` de Prisma
+- [x] Lista de espera (`WAITLIST`) automática cuando un turno se llena, con ascenso automático del primero en espera al cancelarse una reserva `CONFIRMED`
+- [x] `updateAttendance` restringido a `ATTENDED`/`NO_SHOW` únicamente — no puede usarse para forzar `CONFIRMED`/`CANCELLED` esquivando la lógica de `cancel()`
+- [x] Row-Level Security (RLS) habilitado en Supabase; Prisma sigue funcionando con credenciales de administrador
+- [ ] Soft delete vs. hard delete en `Schedule`/`Booking` — sigue pendiente de decisión, anotado desde las primeras sesiones
 
 ---
 
-## Prioridad antes de arrancar el frontend
+## 8. Testing
 
-Si el tiempo apremia, estos son los puntos que **no deberías saltear**:
+- [x] `bookings.service.spec.ts`: cubre asignación `CONFIRMED`/`WAITLIST`, rechazo de doble reserva, reintento ante error de serialización (`P2034`), verificación de `isolationLevel`, y el flujo de ascenso automático en `cancel()`
+- [ ] Sin tests en `schedules`, `routines`, `class-types`, `instructors`, `users` — pendiente
+- [ ] Sin test de integración real contra Postgres para la condición de carrera (el test unitario actual prueba la _lógica de negocio_, no la concurrencia real — requiere una base de datos de test, ver nota en el spec file)
 
-1. `password` nunca expuesto en respuestas (seguridad básica no negociable)
-2. `ValidationPipe` con `whitelist` + `forbidNonWhitelisted` (evita bugs silenciosos)
-3. CORS configurado explícitamente (o el frontend no va a poder conectarse)
-4. Fechas en UTC consistentes (evita bugs de "la clase aparece a otra hora")
-5. Constraint único en `Booking` + test de concurrencia (es el corazón técnico del proyecto)
+---
 
-El resto (Swagger completo, rate limiting, logs avanzados) podés iterarlo en paralelo mientras avanzás con el frontend, sin que bloquee el arranque.
+## 9. Calidad general
+
+- [x] Lint y build sin errores antes de cada push
+- [x] Componentes/servicios compartidos entre módulos (ej. `runSerializableTransaction`) extraídos en vez de duplicados
+- [ ] README principal desactualizado — pendiente de reescribir con arquitectura completa y capturas
+
+---
+
+## Prioridad si el tiempo apremia (actualizado)
+
+Con todo lo de arriba ya resuelto, lo que más suma ahora, en orden:
+
+1. **Tests para los módulos sin cobertura** (`schedules`, `routines`, `class-types`) — demuestra consistencia con el estándar que ya tenés en `bookings`
+2. **README completo** — es lo primero que ve un reclutador
+3. **Filtro global de excepciones** — pulido de consistencia, bajo esfuerzo
+4. Rate limiting y CSRF — buenos para mencionar como "roadmap futuro" en el README, no bloqueantes para portfolio

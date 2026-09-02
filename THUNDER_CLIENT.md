@@ -1,24 +1,23 @@
 # Guía de Pruebas — Thunder Client (MaletFit Backend)
 
-Este documento describe el flujo de pruebas manuales para verificar los endpoints principales del backend de MaletFit: `Auth`, `Users`, `Schedules` y `Bookings`.
+Este documento describe el flujo de pruebas manuales para verificar los endpoints del backend de MaletFit: `Auth`, `Users`, `Instructors`, `ClassTypes`, `Schedules`, `Bookings` y `Routines`.
 
 **Base URL (local):** `http://localhost:3000`
 
-> 💡 Tip: en Thunder Client podés crear una variable de entorno `{{baseUrl}}` y otra `{{token}}` para no repetir valores en cada request.
+> 💡 Tip: en Thunder Client podés crear una variable de entorno `{{baseUrl}}` para no repetir el host en cada request. La autenticación es vía **cookie httpOnly** (no Bearer token) — una vez que hacés login en una pestaña de Thunder Client, la cookie viaja sola en los requests siguientes de esa misma pestaña.
 
 ---
 
 ## 1. Auth
 
-### 1.1 Registro de usuario
+### 1.1 Registro
 
-| Campo    | Valor                            |
-| -------- | -------------------------------- |
-| Método   | `POST`                           |
-| Endpoint | `{{baseUrl}}/auth/register`      |
-| Headers  | `Content-Type: application/json` |
+| Campo    | Valor                       |
+| -------- | --------------------------- |
+| Método   | `POST`                      |
+| Endpoint | `{{baseUrl}}/auth/register` |
 
-**Body (JSON):**
+**Body:**
 
 ```json
 {
@@ -28,37 +27,16 @@ Este documento describe el flujo de pruebas manuales para verificar los endpoint
 }
 ```
 
-**Respuesta esperada (201):**
-
-```json
-{
-  "token":: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": "uuid-generado",
-    "email": "alumna@maletfit.com",
-    "fullName": "Ana Torres",
-    "role": "STUDENT"
-  }
-}
-```
-
-**Casos de error a probar:**
-
-- Email duplicado → `409 Conflict`
-- Password sin cumplir longitud mínima → `400 Bad Request`
-- Campo `email` con formato inválido → `400 Bad Request`
-
----
+**Respuesta esperada (201):** `{ "user": { id, email, fullName, role: "STUDENT" } }`, con la cookie `jwt` seteada (httpOnly) en la respuesta — no aparece en el body.
 
 ### 1.2 Login
 
-| Campo    | Valor                            |
-| -------- | -------------------------------- |
-| Método   | `POST`                           |
-| Endpoint | `{{baseUrl}}/auth/login`         |
-| Headers  | `Content-Type: application/json` |
+| Campo    | Valor                    |
+| -------- | ------------------------ |
+| Método   | `POST`                   |
+| Endpoint | `{{baseUrl}}/auth/login` |
 
-**Body (JSON):**
+**Body:**
 
 ```json
 {
@@ -67,25 +45,16 @@ Este documento describe el flujo de pruebas manuales para verificar los endpoint
 }
 ```
 
-**Respuesta esperada (200):**
+**Respuesta esperada (200):** `{ "user": {...} }`, cookie `jwt` seteada.
 
-```json
-{
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": "uuid-generado",
-    "email": "alumna@maletfit.com",
-    "role": "STUDENT"
-  }
-}
-```
+### 1.3 Logout
 
-> ✅ Guardá el `accessToken` en la variable `{{token}}` para usarlo en los siguientes requests.
+| Campo    | Valor                     |
+| -------- | ------------------------- |
+| Método   | `POST`                    |
+| Endpoint | `{{baseUrl}}/auth/logout` |
 
-**Casos de error a probar:**
-
-- Credenciales incorrectas → `401 Unauthorized`
-- Usuario inexistente → `401 Unauthorized` (nunca revelar si el email existe o no, por seguridad)
+**Respuesta esperada (200):** limpia la cookie `jwt`.
 
 ---
 
@@ -93,172 +62,216 @@ Este documento describe el flujo de pruebas manuales para verificar los endpoint
 
 ### 2.1 Perfil propio
 
-| Campo    | Valor                             |
-| -------- | --------------------------------- |
-| Método   | `GET`                             |
-| Endpoint | `{{baseUrl}}/users/me`            |
-| Headers  | `Authorization: Bearer {{token}}` |
+`GET {{baseUrl}}/users/me` — cualquier rol autenticado. Nunca debe incluir `password` en la respuesta.
 
-**Respuesta esperada (200):**
+### 2.2 Listado completo (solo ADMIN)
+
+`GET {{baseUrl}}/users` — devuelve todos los usuarios con `id`, `email`, `fullName`, `role`, `createdAt`.
+
+### 2.3 Listado de alumnos (ADMIN / INSTRUCTOR)
+
+`GET {{baseUrl}}/users/students` — devuelve solo usuarios `STUDENT`, con `id`, `fullName`, `email` (sin `password`).
+
+### 2.4 Cambiar rol de un usuario (solo ADMIN)
+
+| Campo    | Valor                        |
+| -------- | ---------------------------- |
+| Método   | `PATCH`                      |
+| Endpoint | `{{baseUrl}}/users/:id/role` |
+
+**Body:**
+
+```json
+{ "role": "INSTRUCTOR" }
+```
+
+**Casos a probar:**
+
+- Rol válido (`ADMIN` / `INSTRUCTOR` / `STUDENT`) → `200`, y si el nuevo rol es `INSTRUCTOR`, se crea automáticamente el perfil en la tabla `Instructor` si no existía.
+- Rol inválido (ej. `"COSA"`) → `400` (`@IsEnum`).
+- Un admin intentando cambiar su propio rol → `400` (`"No podés cambiar tu propio rol"`).
+- Un `STUDENT`/`INSTRUCTOR` intentando este endpoint → `403`.
+
+---
+
+## 3. Instructors
+
+### 3.1 Listado completo (ADMIN / INSTRUCTOR)
+
+`GET {{baseUrl}}/instructors` — cada item incluye `id` (el `Instructor.id`, distinto del `User.id`) y `user: { id, fullName, email }`.
+
+### 3.2 Mi propio perfil de instructor
+
+`GET {{baseUrl}}/instructors/me` — logueado como `INSTRUCTOR`. Devuelve `404` si el usuario no tiene perfil de `Instructor` asociado (por ejemplo, un `ADMIN` que nunca fue promovido).
+
+---
+
+## 4. ClassTypes
+
+### 4.1 Listado (cualquier rol autenticado)
+
+`GET {{baseUrl}}/class-types`
+
+### 4.2 Crear (solo ADMIN)
+
+| Campo    | Valor                     |
+| -------- | ------------------------- |
+| Método   | `POST`                    |
+| Endpoint | `{{baseUrl}}/class-types` |
+
+**Body:**
 
 ```json
 {
-  "id": "uuid-generado",
-  "email": "alumna@maletfit.com",
-  "fullName": "Ana Torres",
-  "role": "STUDENT"
+  "name": "Crossfit",
+  "description": "Entrenamiento funcional de alta intensidad",
+  "durationMin": 45
 }
 ```
 
-> ⚠️ Verificar que la respuesta **nunca** incluya el campo `password`.
-
 **Casos de error a probar:**
 
-- Sin header `Authorization` → `401 Unauthorized`
-- Token expirado o inválido → `401 Unauthorized`
+- `durationMin` en `0` o negativo → `400`
+- `name` vacío o ausente → `400`
+- Campo extra no declarado en el DTO (ej. `foo: "bar"`) → `400` (`forbidNonWhitelisted`)
+- Un `STUDENT`/`INSTRUCTOR` intentando crear → `403`
 
 ---
 
-### 2.2 Listado de usuarios (solo ADMIN)
+## 5. Schedules
 
-| Campo    | Valor                                                           |
-| -------- | --------------------------------------------------------------- |
-| Método   | `GET`                                                           |
-| Endpoint | `{{baseUrl}}/users`                                             |
-| Headers  | `Authorization: Bearer {{token}}` (token de un usuario `ADMIN`) |
+### 5.1 Crear turno (ADMIN / INSTRUCTOR)
 
-**Respuesta esperada (200):** array de usuarios.
+| Campo    | Valor                   |
+| -------- | ----------------------- |
+| Método   | `POST`                  |
+| Endpoint | `{{baseUrl}}/schedules` |
 
-**Casos de error a probar:**
-
-- Token de un usuario `STUDENT` intentando acceder → `403 Forbidden` (verifica `RolesGuard`)
-
----
-
-## 3. Schedules
-
-### 3.1 Crear turno (ADMIN / INSTRUCTOR)
-
-| Campo    | Valor                                                               |
-| -------- | ------------------------------------------------------------------- |
-| Método   | `POST`                                                              |
-| Endpoint | `{{baseUrl}}/schedules`                                             |
-| Headers  | `Authorization: Bearer {{token}}`, `Content-Type: application/json` |
-
-**Body (JSON):**
+**Body:**
 
 ```json
 {
   "classTypeId": "uuid-del-class-type",
   "instructorId": "uuid-del-instructor",
-  "startTime": "2026-08-20T14:00:00.000Z",
-  "endTime": "2026-08-20T15:00:00.000Z",
+  "startTime": "2026-09-20T14:00:00.000Z",
+  "endTime": "2026-09-20T15:00:00.000Z",
   "capacity": 5
 }
 ```
 
-**Respuesta esperada (201):** objeto `Schedule` creado.
+> ⚠️ `instructorId` es el `Instructor.id` (de `GET /instructors` o `/instructors/me`), **no** el `User.id`.
+
+### 5.2 Listar todos los turnos
+
+`GET {{baseUrl}}/schedules` — cualquier rol. Incluye `classType`, `instructor.user`, y `_count.bookings` (reservas `CONFIRMED`).
+
+### 5.3 Mis turnos (INSTRUCTOR / ADMIN)
+
+`GET {{baseUrl}}/schedules/my-schedules` — solo los turnos donde `instructorId` coincide con el perfil de instructor del usuario logueado.
+
+### 5.4 Disponibilidad de un turno
+
+`GET {{baseUrl}}/schedules/:id/availability` → `{ scheduleId, capacity, occupiedSeats, availableSeats, isFull }`
+
+### 5.5 Roster de un turno (INSTRUCTOR / ADMIN)
+
+`GET {{baseUrl}}/schedules/:id/roster` → `{ scheduleId, confirmed: [...], waitlist: [...] }`, cada entrada con `user: { id, fullName, email }`.
 
 ---
 
-### 3.2 Listar turnos disponibles
+## 6. Bookings
 
-| Campo    | Valor                             |
-| -------- | --------------------------------- |
-| Método   | `GET`                             |
-| Endpoint | `{{baseUrl}}/schedules`           |
-| Headers  | `Authorization: Bearer {{token}}` |
+### 6.1 Crear reserva
 
-**Respuesta esperada (200):** array de `Schedule` con `classType` e `instructor` incluidos.
+`POST {{baseUrl}}/bookings` con `{ "scheduleId": "..." }`.
+
+**Casos a probar (crítico — condiciones de carrera):**
+
+- Cupo disponible → `status: "CONFIRMED"`
+- Cupo lleno → `status: "WAITLIST"` (no rechaza la request, asigna lista de espera)
+- Mismo alumno reservando el mismo turno dos veces → `409 Conflict`
+- **Prueba de concurrencia:** disparar varios requests simultáneos contra el último cupo libre de un turno de capacidad 5 (con 8 alumnos de prueba) → exactamente 5 `CONFIRMED` y el resto `WAITLIST`, sin sobreturnos.
+
+### 6.2 Mis reservas
+
+`GET {{baseUrl}}/bookings/my-bookings` — incluye `schedule` completo (con `classType` e `instructor.user`).
+
+### 6.3 Cancelar reserva
+
+`PATCH {{baseUrl}}/bookings/:id/cancel` — si la reserva cancelada estaba `CONFIRMED`, asciende automáticamente al primero en `WAITLIST` (por orden de creación).
+
+### 6.4 Marcar asistencia (ADMIN / INSTRUCTOR)
+
+| Campo    | Valor                                 |
+| -------- | ------------------------------------- |
+| Método   | `PATCH`                               |
+| Endpoint | `{{baseUrl}}/bookings/:id/attendance` |
+
+**Body:**
+
+```json
+{ "status": "ATTENDED" }
+```
+
+Valores válidos: `"ATTENDED"` o `"NO_SHOW"` únicamente. Puede llamarse varias veces sobre la misma reserva para corregir una marca anterior.
 
 ---
 
-### 3.3 Ver disponibilidad de un turno
+## 7. Routines
 
-| Campo    | Valor                                    |
-| -------- | ---------------------------------------- |
-| Método   | `GET`                                    |
-| Endpoint | `{{baseUrl}}/schedules/:id/availability` |
-| Headers  | `Authorization: Bearer {{token}}`        |
+### 7.1 Crear rutina (ADMIN / INSTRUCTOR)
 
-**Respuesta esperada (200):**
+| Campo    | Valor                  |
+| -------- | ---------------------- |
+| Método   | `POST`                 |
+| Endpoint | `{{baseUrl}}/routines` |
+
+**Body:**
 
 ```json
 {
-  "scheduleId": "uuid-del-schedule",
-  "capacity": 5,
-  "booked": 3,
-  "available": 2
+  "userId": "uuid-del-alumno",
+  "title": "Rutina de fuerza - Semana 1",
+  "notes": "Enfocado en tren superior, 3 veces por semana",
+  "exercises": [
+    { "name": "Press de banca", "sets": 4, "reps": 10, "weightKg": 40 },
+    { "name": "Remo con barra", "sets": 4, "reps": 12 }
+  ]
 }
 ```
 
----
+`userId` es el `User.id` del alumno (no el `Instructor.id`). Requiere al menos 1 ejercicio.
 
-## 4. Bookings
+### 7.2 Mis rutinas (el propio alumno)
 
-### 4.1 Crear reserva
+`GET {{baseUrl}}/routines/my-routines`
 
-| Campo    | Valor                                                               |
-| -------- | ------------------------------------------------------------------- |
-| Método   | `POST`                                                              |
-| Endpoint | `{{baseUrl}}/bookings`                                              |
-| Headers  | `Authorization: Bearer {{token}}`, `Content-Type: application/json` |
+### 7.3 Todas las rutinas (ADMIN / INSTRUCTOR)
 
-**Body (JSON):**
+`GET {{baseUrl}}/routines` — incluye `user: { id, fullName, email }` de cada alumno.
 
-```json
-{
-  "scheduleId": "uuid-del-schedule"
-}
-```
+### 7.4 Ver una rutina puntual
 
-**Respuesta esperada (201):** objeto `Booking` con `status: "CONFIRMED"`.
+`GET {{baseUrl}}/routines/:id` — el propio alumno dueño, o `ADMIN`/`INSTRUCTOR`. Otro alumno intentando ver una rutina ajena → `403`.
 
-**Casos de error a probar (crítico):**
+### 7.5 Editar rutina (ADMIN / INSTRUCTOR)
 
-- Reservar el mismo turno dos veces con el mismo usuario → `409 Conflict` (constraint `@@unique([userId, scheduleId])`)
-- Reservar un turno con cupo lleno (5/5) → `409 Conflict`, mensaje `"No hay cupos disponibles para este turno"`
-- **Prueba de concurrencia:** disparar 2-3 requests simultáneos contra el último cupo libre de un turno (podés abrir varias pestañas de Thunder Client o usar un script) y verificar que solo una reserva se confirme.
+`PATCH {{baseUrl}}/routines/:id` — mismo shape que el create, todos los campos opcionales. Si se manda `exercises`, reemplaza todos los ejercicios existentes.
+
+### 7.6 Eliminar rutina (ADMIN / INSTRUCTOR)
+
+`DELETE {{baseUrl}}/routines/:id`
 
 ---
 
-### 4.2 Ver mis reservas
+## 8. Flujo end-to-end sugerido
 
-| Campo    | Valor                              |
-| -------- | ---------------------------------- |
-| Método   | `GET`                              |
-| Endpoint | `{{baseUrl}}/bookings/my-bookings` |
-| Headers  | `Authorization: Bearer {{token}}`  |
-
-**Respuesta esperada (200):** array de `Booking` con `schedule`, `classType` e `instructor` incluidos.
-
----
-
-### 4.3 Cancelar reserva
-
-| Campo    | Valor                             |
-| -------- | --------------------------------- |
-| Método   | `PATCH`                           |
-| Endpoint | `{{baseUrl}}/bookings/:id/cancel` |
-| Headers  | `Authorization: Bearer {{token}}` |
-
-**Respuesta esperada (200):** objeto `Booking` actualizado con `status: "CANCELLED"`.
-
-**Casos de error a probar:**
-
-- Cancelar una reserva de otro usuario → `404 Not Found` (no revelar que la reserva existe pero pertenece a otro)
-- Cancelar una reserva ya cancelada → definir comportamiento esperado (idempotente vs error)
-
----
-
-## 5. Orden recomendado de ejecución del flujo completo
-
-1. `POST /auth/register` (crear un ADMIN manualmente en la DB o vía seed)
-2. `POST /auth/login` como ADMIN → guardar token
-3. `POST /schedules` (crear un turno con capacity: 5)
-4. `POST /auth/register` × 5 (crear 5 alumnos distintos)
-5. Con cada alumno: `POST /bookings` sobre el mismo `scheduleId`
-6. Verificar que el 6º intento de reserva devuelva `409 Conflict`
-7. `GET /schedules/:id/availability` → debe mostrar `available: 0`
-8. `PATCH /bookings/:id/cancel` con uno de los alumnos
-9. `GET /schedules/:id/availability` → debe mostrar `available: 1`
+1. `POST /auth/register` × 3 (un futuro admin, un instructor, un alumno) — o promoví uno existente con `PATCH /users/:id/role`
+2. Como `ADMIN`: `POST /class-types`, luego `GET /instructors` para conseguir un `Instructor.id`
+3. Como `ADMIN` o `INSTRUCTOR`: `POST /schedules` con capacity: 5
+4. `POST /auth/register` × 6 alumnos de prueba
+5. Con cada alumno: `POST /bookings` sobre el mismo `scheduleId` → confirmar 5 `CONFIRMED` + 1 `WAITLIST`
+6. `PATCH /bookings/:id/cancel` sobre uno de los `CONFIRMED` → confirmar que el de `WAITLIST` pasa a `CONFIRMED`
+7. Como `INSTRUCTOR`: `GET /schedules/:id/roster`, luego `PATCH /bookings/:id/attendance`
+8. Como `ADMIN`/`INSTRUCTOR`: `POST /routines` para uno de los alumnos, luego `PATCH /routines/:id` para editarla
+9. Como el alumno: `GET /routines/my-routines` → confirmar que ve la rutina actualizada
