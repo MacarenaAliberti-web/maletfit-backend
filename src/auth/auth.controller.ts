@@ -12,12 +12,10 @@ export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
   @Post('register')
-  async register(
-    @Body() dto: RegisterDto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const { token, user } = await this.authService.register(dto);
-    this.setAuthCookie(res, token);
+  async register(@Body() dto: RegisterDto) {
+    const { user } = await this.authService.register(dto);
+    // A propósito, no seteamos la cookie acá: el registro solo crea la
+    // cuenta, el login sigue siendo el único punto donde se inicia sesión.
     return { user };
   }
 
@@ -38,7 +36,7 @@ export class AuthController {
     res.clearCookie(COOKIE_NAME, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
     });
     return { message: 'Sesión cerrada correctamente' };
@@ -48,7 +46,7 @@ export class AuthController {
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: COOKIE_MAX_AGE_MS,
       path: '/',
     });
