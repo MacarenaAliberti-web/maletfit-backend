@@ -21,11 +21,12 @@ export class BookingsService {
             try {
                 return await this.prisma.$transaction(fn, {
                     isolationLevel: 'Serializable',
+                    maxWait: 10000, // tiempo esperando para ENTRAR a la transacción
+                    timeout: 15000,  // tiempo máximo que puede durar la transacción una vez iniciada
                 });
             } catch (error) {
                 const isSerializationError =
-                    error instanceof Prisma.PrismaClientKnownRequestError &&
-                    error.code === 'P2034';
+                    error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
 
                 if (isSerializationError && attempt < MAX_RETRIES) {
                     continue;
@@ -34,8 +35,6 @@ export class BookingsService {
             }
         }
 
-        // Inalcanzable en la práctica (el loop siempre retorna o lanza),
-        // pero TypeScript necesita un retorno explícito en todos los caminos.
         throw new Error('No se pudo completar la operación tras reintentos');
     }
 
