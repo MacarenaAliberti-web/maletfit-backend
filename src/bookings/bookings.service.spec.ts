@@ -14,7 +14,8 @@ describe('BookingsService - Concurrencia, capacidad y lista de espera', () => {
     let transactionQueue: Promise<any>;
 
     const mockPrismaService = {
-        $transaction: jest.fn((callback: any) => {
+        $transaction: jest.fn((callback: any, _options?: any) => {
+            void _options; // silencia la advertencia de no-unused-vars sin un disable
             const result = transactionQueue.then(() => callback(mockPrismaService));
             transactionQueue = result.catch(() => { });
             return result;
@@ -68,7 +69,7 @@ describe('BookingsService - Concurrencia, capacidad y lista de espera', () => {
         // Confirma que la transacción se ejecutó con el nivel de aislamiento correcto
         expect(mockPrismaService.$transaction).toHaveBeenCalledWith(
             expect.any(Function),
-            { isolationLevel: 'Serializable' },
+            { isolationLevel: 'Serializable', maxWait: 10000, timeout: 15000 },
         );
     });
 
