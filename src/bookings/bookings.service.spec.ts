@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
 import { BookingsService } from './bookings.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 
 describe('BookingsService - Concurrencia, capacidad y lista de espera', () => {
     let service: BookingsService;
@@ -30,6 +31,16 @@ describe('BookingsService - Concurrencia, capacidad y lista de espera', () => {
             create: jest.fn(),
             update: jest.fn(),
         },
+        user: {
+            findUnique: jest.fn(),
+        },
+    };
+
+    const mockMailService = {
+        sendBookingConfirmedEmail: jest.fn(),
+        sendBookingWaitlistEmail: jest.fn(),
+        sendBookingCancelledEmail: jest.fn(),
+        sendBookingPromotedEmail: jest.fn(),
     };
 
     beforeEach(async () => {
@@ -39,6 +50,7 @@ describe('BookingsService - Concurrencia, capacidad y lista de espera', () => {
             providers: [
                 BookingsService,
                 { provide: PrismaService, useValue: mockPrismaService },
+                { provide: MailService, useValue: mockMailService },
             ],
         }).compile();
 

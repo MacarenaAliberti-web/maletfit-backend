@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { RoutinesService } from './routines.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 
 describe('RoutinesService', () => {
     let service: RoutinesService;
@@ -18,6 +19,13 @@ describe('RoutinesService', () => {
         routineExercise: {
             deleteMany: jest.fn(),
         },
+        user: {
+            findUnique: jest.fn(),
+        },
+    };
+
+    const mockMailService = {
+        sendRoutineAssignedEmail: jest.fn(),
     };
 
     beforeEach(async () => {
@@ -25,6 +33,7 @@ describe('RoutinesService', () => {
             providers: [
                 RoutinesService,
                 { provide: PrismaService, useValue: mockPrismaService },
+                { provide: MailService, useValue: mockMailService },
             ],
         }).compile();
 
