@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
@@ -14,6 +15,7 @@ export class AuthService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly jwtService: JwtService,
+        private readonly mailService: MailService,
     ) { }
 
     async register(dto: RegisterDto) {
@@ -34,6 +36,12 @@ export class AuthService {
                 fullName: dto.fullName,
             },
         });
+
+        // El email se dispara después de confirmar que el usuario ya se
+        // creó exitosamente. MailService ya maneja sus propios errores
+        // internamente (try/catch), así que si el envío falla, el registro
+        // igual se completa sin problema — no hace falta un try/catch acá.
+        void this.mailService.sendWelcomeEmail(user.email, user.fullName);
 
         const token = this.generateToken(user.id, user.email, user.role);
 
