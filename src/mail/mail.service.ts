@@ -85,6 +85,27 @@ export class MailService {
         `;
         await this.sendMail(to, `Lista de espera: ${className}`, html);
     }
+    async sendNewBookingNotificationToInstructor(
+        to: string,
+        instructorName: string,
+        studentName: string,
+        className: string,
+        startTime: Date,
+    ) {
+        const formattedDate = startTime.toLocaleString('es-AR', {
+            dateStyle: 'full',
+            timeStyle: 'short',
+        });
+        const html = `
+            <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+                <h1 style="color: #10b981;">Nueva reserva en tu clase</h1>
+                <p>Hola ${instructorName}, <strong>${studentName}</strong> se anotó en tu clase de <strong>${className}</strong>.</p>
+                <p><strong>Fecha y hora:</strong> ${formattedDate}</p>
+                <p style="color: #6b7280; font-size: 14px;">Este es un email automático, no respondas a este mensaje.</p>
+            </div>
+        `;
+        await this.sendMail(to, `Nueva reserva: ${studentName} en ${className}`, html);
+    }
     async sendBookingCancelledEmail(
         to: string,
         fullName: string,
@@ -139,5 +160,20 @@ export class MailService {
             </div>
         `;
         await this.sendMail(to, `Nueva rutina asignada: ${routineTitle}`, html);
+    }
+    async sendNewUserNotificationToAdmin(
+        to: string,
+        studentName: string,
+        studentEmail: string,
+    ) {
+        const html = `
+            <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+                <h1 style="color: #10b981;">Nuevo usuario registrado</h1>
+                <p><strong>${studentName}</strong> se registró en MaletFit.</p>
+                <p><strong>Email:</strong> ${studentEmail}</p>
+                <p style="color: #6b7280; font-size: 14px;">Este es un email automático, no respondas a este mensaje.</p>
+            </div>
+        `;
+        await this.sendMail(to, `Nuevo registro: ${studentName}`, html);
     }
 }

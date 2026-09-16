@@ -121,7 +121,12 @@ export class BookingsService {
                 }),
                 this.prisma.schedule.findUnique({
                     where: { id: scheduleId },
-                    include: { classType: true },
+                    include: {
+                        classType: true,
+                        instructor: {
+                            include: { user: { select: { email: true, fullName: true } } },
+                        },
+                    },
                 }),
             ]);
 
@@ -142,13 +147,20 @@ export class BookingsService {
                     schedule.startTime,
                 );
             }
+
+            // Se avisa al instructor en ambos casos (cupo confirmado o
+            // lista de espera) — en los dos, alguien se anotó a su clase.
+            await this.mailService.sendNewBookingNotificationToInstructor(
+                schedule.instructor.user.email,
+                schedule.instructor.user.fullName,
+                user.fullName,
+                schedule.classType.name,
+                schedule.startTime,
+            );
         } catch {
-            // Si algo falla acá (por ejemplo, una query), no debe
-            // afectar la respuesta de la reserva — ya se devolvió
-            // exitosamente antes de que esto se ejecute.
+            // No debe afectar la respuesta ya enviada.
         }
     }
-
     async findMyBookings(userId: string) {
         return this.prisma.booking.findMany({
             where: { userId },
