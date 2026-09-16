@@ -37,11 +37,8 @@ export class AuthService {
             },
         });
 
-        // El email se dispara después de confirmar que el usuario ya se
-        // creó exitosamente. MailService ya maneja sus propios errores
-        // internamente (try/catch), así que si el envío falla, el registro
-        // igual se completa sin problema — no hace falta un try/catch acá.
         void this.mailService.sendWelcomeEmail(user.email, user.fullName);
+        void this.notifyAdminOfNewUser(user.fullName, user.email);
 
         const token = this.generateToken(user.id, user.email, user.role);
 
@@ -54,6 +51,25 @@ export class AuthService {
             },
             token,
         };
+    }
+
+    private async notifyAdminOfNewUser(fullName: string, email: string) {
+        try {
+            const admin = await this.prisma.user.findFirst({
+                where: { role: 'ADMIN' },
+                select: { email: true },
+            });
+
+            if (!admin) return;
+
+            await this.mailService.sendNewUserNotificationToAdmin(
+                admin.email,
+                fullName,
+                email,
+            );
+        } catch {
+            // No debe afectar la respuesta de registro ya generada.
+        }
     }
 
     async login(dto: LoginDto) {
