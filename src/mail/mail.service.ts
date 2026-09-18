@@ -1,38 +1,47 @@
 // src/mail/mail.service.ts
 import { Injectable, Logger } from '@nestjs/common';
-import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
     private readonly logger = new Logger(MailService.name);
-    private transporter: nodemailer.Transporter;
-
-    constructor() {
-        this.transporter = nodemailer.createTransport({
-            host: 'smtp.gmail.com',
-            port: 587,
-            secure: false, // usa STARTTLS en vez de SSL directo
-            auth: {
-                user: process.env.GMAIL_USER,
-                pass: process.env.GMAIL_APP_PASSWORD,
-            },
-        });
-    }
 
     private async sendMail(to: string, subject: string, html: string) {
         try {
-            await this.transporter.sendMail({
-                from: `"MaletFit" <${process.env.GMAIL_USER}>`,
-                to,
-                subject,
-                html,
+            const apiKey = process.env.BREVO_API_KEY;
+            const senderEmail = process.env.BREVO_SENDER_EMAIL;
+
+            if (!apiKey || !senderEmail) {
+                this.logger.error('Faltan las variables de entorno BREVO_API_KEY o BREVO_SENDER_EMAIL');
+                return;
+            }
+
+            const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+                method: 'POST',
+                headers: {
+                    'accept': 'application/json',
+                    'api-key': apiKey,
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sender: {
+                        name: 'MaletFit',
+                        email: senderEmail,
+                    },
+                    to: [{ email: to }],
+                    subject: subject,
+                    htmlContent: html,
+                }),
             });
-            this.logger.log(`Email enviado a ${to}: ${subject}`);
-        } catch (error) {
+
+            if (!response.ok) {
+                const errorData = await response.text();
+                throw new Error(`Error de Brevo (${response.status}): ${errorData}`);
+            }
+
+            this.logger.log(`Email enviado vía Brevo a ${to}: ${subject}`);
+        } catch (error: any) {
             // Importante: el email NUNCA debe romper la operación principal.
-            // Si falla el envío, solo lo logueamos — la reserva, el registro,
-            // etc. ya se completaron exitosamente en la base de datos.
-            this.logger.error(`Error al enviar email a ${to}: ${error}`);
+            this.logger.error(`Error al enviar email vía Brevo a ${to}: ${error.message || error}`);
         }
     }
 
@@ -46,6 +55,7 @@ export class MailService {
         `;
         await this.sendMail(to, '¡Bienvenido a MaletFit! 🏋️', html);
     }
+
     async sendBookingConfirmedEmail(
         to: string,
         fullName: string,
@@ -87,6 +97,7 @@ export class MailService {
         `;
         await this.sendMail(to, `Lista de espera: ${className}`, html);
     }
+
     async sendNewBookingNotificationToInstructor(
         to: string,
         instructorName: string,
@@ -108,6 +119,7 @@ export class MailService {
         `;
         await this.sendMail(to, `Nueva reserva: ${studentName} en ${className}`, html);
     }
+
     async sendBookingCancelledEmail(
         to: string,
         fullName: string,
@@ -148,6 +160,7 @@ export class MailService {
         `;
         await this.sendMail(to, `¡Tu lugar en ${className} se confirmó!`, html);
     }
+
     async sendRoutineAssignedEmail(
         to: string,
         fullName: string,
@@ -163,6 +176,7 @@ export class MailService {
         `;
         await this.sendMail(to, `Nueva rutina asignada: ${routineTitle}`, html);
     }
+
     async sendNewUserNotificationToAdmin(
         to: string,
         studentName: string,
