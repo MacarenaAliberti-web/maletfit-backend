@@ -6,11 +6,24 @@ MaletFit resuelve un problema real de negocio: gestionar clases grupales con cup
 
 ---
 
+🔗 **Demo en vivo:** [maletfit-frontend.vercel.app](https://maletfit-frontend.vercel.app)
+_(el backend está en el plan gratuito de Render, así que la primera carga puede tardar 30-50 segundos en "despertar")_
+
+📖 **Documentación interactiva de la API:** disponible en `/api/docs` (Swagger) una vez levantado el backend local
+
+### Capturas de pantalla
+
+| Dashboard de alumno                                           | Dashboard de instructor                                              | Dashboard de admin                                         |
+| ------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------- |
+| ![Dashboard alumno](./docs/screenshots/student-dashboard.png) | ![Dashboard instructor](./docs/screenshots/instructor-dashboard.png) | ![Dashboard admin](./docs/screenshots/admin-dashboard.png) |
+
+---
+
 ## Stack técnico
 
 | Capa          | Tecnología                                                   |
 | ------------- | ------------------------------------------------------------ |
-| Frontend      | Next.js 15 (App Router), TypeScript, Tailwind CSS, Shadcn UI |
+| Frontend      | Next.js 16 (App Router), TypeScript, Tailwind CSS, Shadcn UI |
 | Backend       | NestJS, TypeScript                                           |
 | ORM           | Prisma                                                       |
 | Base de datos | PostgreSQL (Supabase), con Row-Level Security habilitado     |
@@ -167,3 +180,13 @@ npm run dev
 - Rate limiting en `/auth/login`
 - Tests de integración reales contra una base de datos de test, para validar la condición de carrera con concurrencia genuina (no solo la lógica de negocio con mocks)
 - Soft delete para `Schedule`/`Booking`, preservando historial de asistencia
+
+---
+
+## 📚 Documentación adicional
+
+- [`TESTING_GUIDE.md`](./TESTING_GUIDE.md) — qué es un test unitario, cómo funcionan los mocks de Jest, y el detalle de qué se testea en cada módulo
+- [`THUNDER_CLIENT.md`](./THUNDER_CLIENT.md) — guía de pruebas manuales de todos los endpoints
+- [`EMAIL_NOTIFICATIONS.md`](./EMAIL_NOTIFICATIONS.md) — decisiones detrás del sistema de notificaciones (por qué Brevo y no Resend o Gmail SMTP)
+- [`BACKEND_CHECKLIST.md`](./BACKEND_CHECKLIST.md) — checklist de revisión integral del backend
+- [Deploy en Render + Vercel](https://github.com/MacarenaAliberti-web/maletfit-frontend/blob/main/DEPLOYMENT.md) — cómo se desplegó y el problema de cookies cross-domain que hubo que resolver
