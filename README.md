@@ -1,6 +1,12 @@
 # MaletFit 🏋️
 
-**Plataforma de gestión de turnos, reservas y rutinas para gimnasios**, desarrollada como proyecto de portfolio full stack.
+### MaletFit: turnos, reservas y rutinas (en uso real)
+Plataforma de gestión de turnos, reservas y rutinas de entrenamiento, que uso actualmente con alumnos en mis clases de funcional.
+- Resolví condiciones de carrera en las reservas con transacciones PostgreSQL de aislamiento Serializable y reintentos automáticos, con lista de espera automática.
+- Autenticación con JWT en cookies httpOnly y control de acceso por roles (alumno, instructor y admin).
+- Notificaciones por email asíncronas con Brevo y tests unitarios con Jest.
+- **Stack:** Next.js 16, TypeScript, Tailwind CSS, Shadcn UI, NestJS, Prisma, PostgreSQL (Supabase)
+- 🔗 [Demo](https://maletfit-frontend.vercel.app) · [Frontend](https://github.com/MacarenaAliberti-web/maletfit-frontend) · [Backend](https://github.com/MacarenaAliberti-web/maletfit-backend)
 
 MaletFit resuelve un problema real de negocio: gestionar clases grupales con cupo limitado (máximo 5 alumnos por turno), evitando sobreturnos incluso bajo reservas simultáneas, con lista de espera automática, seguimiento de asistencia y rutinas de entrenamiento personalizadas por instructor.
 
